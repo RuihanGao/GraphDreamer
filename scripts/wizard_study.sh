@@ -1,3 +1,8 @@
+#!/bin/bash
+start=$(date +%s)
+
+export cuda=1
+
 export P="a Wizard standing before a Wooden Desk, gazing into a Crystal Ball perched atop the Wooden Desk, with a Stack of Ancient Spell Books perched atop the Wooden Desk, cartoon, blender"
 export P1="'a Wizard: bearded, standing, focused'"
 export P2="'a Wooden Desk: large, sturdy, carved with runes, aged'"
@@ -24,7 +29,7 @@ export R=[0.5,0.5,0.3,0.3]
 export TG="wizard_study"
 
 # 1. Coarse stage:
-python launch.py --config configs/gd-if.yaml --train --gpu 0 exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=4 system.prompt_processor.prompt="$P" system.prompt_processor.negative_prompt="$NP" system.prompt_obj=[["$P1"],["$P2"],["$P3"],["$P4"]] system.prompt_obj_neg=[["$N234"],["$N134"],["$N124"],["$N123"]] system.prompt_global="$PG" system.edge_list=$E system.guidance.guidance_scale=[200.,100.] system.guidance.guidance_scale_milestones=[2000,] system.geometry.center_params=$C system.geometry.radius_params=$R system.optimizer.params.geometry.lr=0.01 data.resolution_milestones=[2000,] trainer.max_steps=4600
+python launch.py --config configs/gd-if.yaml --train --gpu $cuda exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=4 system.prompt_processor.prompt="$P" system.prompt_processor.negative_prompt="$NP" system.prompt_obj=[["$P1"],["$P2"],["$P3"],["$P4"]] system.prompt_obj_neg=[["$N234"],["$N134"],["$N124"],["$N123"]] system.prompt_global="$PG" system.edge_list=$E system.guidance.guidance_scale=[200.,100.] system.guidance.guidance_scale_milestones=[2000,] system.geometry.center_params=$C system.geometry.radius_params=$R system.optimizer.params.geometry.lr=0.01 data.resolution_milestones=[2000,] trainer.max_steps=4600
 
 # 2. Fine stage:
 export RP="a 4K DSLR high-resolution high-quality photo of "$P""
@@ -40,7 +45,11 @@ export RP34="a 4K DSLR high-resolution high-quality photo of "$P34""
 export RPG=[["$RP12"],["$RP23"],["$RP34"],["$RP24"]]
 
 # Avoid OOM: data.batch_size=1 data.width=128 data.height=128
-python launch.py --config configs/gd-sd-refine.yaml --train --gpu 0 exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=4 system.prompt_processor.prompt="$RP" system.prompt_processor.negative_prompt="$NP" system.prompt_obj=[["$RP1"],["$RP2"],["$RP3"],["$RP4"]] system.prompt_obj_neg=[["$N234"],["$N134"],["$N124"],["$N123"]] system.prompt_global="$RPG" system.edge_list=$E system.geometry.center_params=$C system.geometry.radius_params=$R resume=examples/gd-if/$TG/ckpts/last.ckpt data.batch_size=1 data.width=128 data.height=128 trainer.max_steps=10000 trainer.val_check_interval=200
+python launch.py --config configs/gd-sd-refine.yaml --train --gpu $cuda exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=4 system.prompt_processor.prompt="$RP" system.prompt_processor.negative_prompt="$NP" system.prompt_obj=[["$RP1"],["$RP2"],["$RP3"],["$RP4"]] system.prompt_obj_neg=[["$N234"],["$N134"],["$N124"],["$N123"]] system.prompt_global="$RPG" system.edge_list=$E system.geometry.center_params=$C system.geometry.radius_params=$R resume=examples/gd-if/$TG/ckpts/last.ckpt data.batch_size=1 data.width=128 data.height=128 trainer.max_steps=10000 trainer.val_check_interval=200
 
 # Increase training resolution: data.width=256 data.height=256 (Optional: 1xA100 required)
-python launch.py --config configs/gd-sd-refine.yaml --train --gpu 0 exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=4 system.prompt_processor.prompt="$RP" system.prompt_processor.negative_prompt="$NP" system.prompt_obj=[["$RP1"],["$RP2"],["$RP3"],["$RP4"]] system.prompt_obj_neg=[["$N234"],["$N134"],["$N124"],["$N123"]] system.prompt_global="$RPG" system.edge_list=$E system.geometry.center_params=$C system.geometry.radius_params=$R resume=examples/gd-sd-refine/$TG/ckpts/epoch=0-step=10000.ckpt data.batch_size=1 data.width=128 data.height=128 trainer.max_steps=20000 trainer.val_check_interval=200
+python launch.py --config configs/gd-sd-refine.yaml --train --gpu $cuda exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=4 system.prompt_processor.prompt="$RP" system.prompt_processor.negative_prompt="$NP" system.prompt_obj=[["$RP1"],["$RP2"],["$RP3"],["$RP4"]] system.prompt_obj_neg=[["$N234"],["$N134"],["$N124"],["$N123"]] system.prompt_global="$RPG" system.edge_list=$E system.geometry.center_params=$C system.geometry.radius_params=$R resume=examples/gd-sd-refine/$TG/ckpts/epoch=0-step=10000.ckpt data.batch_size=1 data.width=128 data.height=128 trainer.max_steps=20000 trainer.val_check_interval=200
+
+
+end=$(date +%s)
+echo "Total time: $((end - start)) seconds" | tee run_time_wizard_study.log

@@ -10,6 +10,76 @@ from threestudio.systems.base import BaseLift3DSystem
 from threestudio.utils.typing import *
 from threestudio.utils.misc import cleanup, get_device
 
+import trimesh
+import numpy as np
+import mcubes
+import os
+
+import pdb
+
+
+### Helper functions ###
+
+
+def marching_cubes_with_thickness(
+    sdf_grid: np.ndarray,
+    res: int,
+    scale: float = 3.0,
+    center: float = 1.5,
+    thickness: float = 0.01,
+    level: float = 0.0,
+    device=None
+) -> trimesh.Trimesh:
+    """
+    Run Marching Cubes on an SDF grid and create a double-shell mesh with thickness.
+
+    Args:
+        sdf_grid (np.ndarray): [res, res, res] SDF values.
+        res (int): Resolution of the grid.
+        scale (float): Total world size to scale vertices (default 3.0 for [-1.5, 1.5]).
+        center (float): Center shift (default 1.5).
+        thickness (float): Thickness of the shell (small positive number).
+        level (float): Level-set value for outer surface (default 0.0 for SDF).
+    
+    Returns:
+        trimesh.Trimesh: Combined thickened mesh.
+    """
+
+    # (1) Extract outer surface
+    vertices_outer, faces_outer = mcubes.marching_cubes(sdf_grid, level)
+    vertices_outer = vertices_outer / (res - 1) * scale - center  # map to [-center, center]
+
+    # (2) Extract inner surface
+    try:
+        vertices_inner, faces_inner = mcubes.marching_cubes(sdf_grid, level - thickness)
+        vertices_inner = vertices_inner / (res - 1) * scale - center
+        # Flip inner faces
+        faces_inner = faces_inner[:, [0, 2, 1]]
+        valid_inner = vertices_inner.shape[0] > 0 and faces_inner.shape[0] > 0
+    except Exception as e:
+        print(f"[Warning] Inner surface Marching Cubes failed: {e}")
+        valid_inner = False
+
+    # (4) Create trimesh objects
+    mesh_outer = trimesh.Trimesh(vertices=vertices_outer, faces=faces_outer, process=False)
+
+    if valid_inner:
+        mesh_inner = trimesh.Trimesh(vertices=vertices_inner, faces=faces_inner, process=False)
+        solid_mesh = trimesh.util.concatenate([mesh_outer, mesh_inner])
+    else:
+        solid_mesh = mesh_outer  # Only outer shell
+
+    # Extra robustness:
+    solid_mesh.remove_unreferenced_vertices()
+    if solid_mesh.faces.shape[0] > 0:
+        solid_mesh.remove_degenerate_faces()
+        solid_mesh.fix_normals()
+    else:
+        print(f"[Warning] Solid mesh has no valid faces after construction.")
+
+    return solid_mesh
+
+
 
 @threestudio.register("gdreamer-system")
 class ObjectDreamFusion(BaseLift3DSystem):
@@ -135,8 +205,11 @@ class ObjectDreamFusion(BaseLift3DSystem):
                 self.cfg.prompt_obj, self.cfg.prompt_obj_neg, 
                 self.cfg.prompt_obj_back, self.cfg.prompt_obj_side, self.cfg.prompt_obj_overhead,
                 self.obj_use_perp_neg)
-            ):
-                prompt_i = ", ".join(prompt_i)
+            ):  
+                try:
+                    prompt_i = ", ".join(prompt_i)
+                except:
+                    print(f"prompt_i \n{prompt_i}")
                 prompt_i_neg = ", ".join(prompt_i_neg)
                 
                 threestudio.info(f"Object {i} prompts [pos]:[{str(prompt_i)}] [neg]:[{str(prompt_i_neg)}]")
@@ -509,14 +582,147 @@ class ObjectDreamFusion(BaseLift3DSystem):
     def on_validation_epoch_end(self):
         cleanup()
         pass
-    
+
+
+
+    @torch.no_grad()
+    def export_mesh_from_sdf(self, out, res=128, level=0.0, save_prefix="it{step}-mesh"):
+        """
+        Export mesh by querying SDF on a dense grid and running Marching Cubes
+        """
+
+        # 1. Create a 3D coordinate grid
+        lin = torch.linspace(-1.5, 1.5, res, device=get_device())  # Bigger box [-1.5, 1.5]
+        grid_x, grid_y, grid_z = torch.meshgrid(lin, lin, lin, indexing='ij')
+        xyz = torch.stack([grid_x, grid_y, grid_z], dim=-1)  # shape [res, res, res, 3]
+        xyz_flat = xyz.reshape(-1, 3)
+
+        # 2. Query the model's SDF on this grid
+        geo_out = self.geometry(xyz_flat)  # dict_keys(['sdf_OBJ', 'enc_OBJ', 'normal_OBJ', 'shading_normal_OBJ', 'sdf_grad_OBJ', 'features_OBJ', 'soft_Label', 'features_g', 'normal_g', 'shading_normal_g', 'sdf_grad_g'])
+        sdf_values = geo_out["sdf_OBJ"].view(res, res, res, -1)
+        features_g = geo_out["features_g"].view(res, res, res, -1)  # (res, res, res, C)
+        shading_normal_g = geo_out["shading_normal_g"].view(res, res, res, 3)  # (res, res, res, 3)
+
+
+
+            # rgb_fg_G: Float[Tensor, "B ... 3"] = self.material(
+            #     features=geo_out["features_g"],
+            #     viewdirs=t_dirs,
+            #     positions=positions,
+            #     shading_normal=geo_out["shading_normal_g"],
+            #     light_positions=t_light_positions,
+            #     **kwargs
+            # )    
+
+
+        
+        num_objects = sdf_values.shape[-1]
+        output_dir = os.path.join(self.get_save_dir(), "meshes")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        merged_meshes = [] 
+
+        for obj_idx in range(num_objects):
+            sdf_grid = sdf_values[..., obj_idx].detach().cpu().numpy()  # [res, res, res] for one object
+
+            # 3. Run Marching Cubes
+            # vertices, triangles = mcubes.marching_cubes(sdf_grid, level)
+            solid_mesh = marching_cubes_with_thickness(
+            sdf_grid=sdf_grid,
+            res=res,           # 128 or your resolution
+            thickness=0.01,    # can tune this!
+            level=0.0          # standard sdf=0 level
+            )
+
+            # 4. Assign vertex colors
+            vertices = solid_mesh.vertices
+            N = vertices.shape[0]
+
+            if N == 0 or solid_mesh.faces.shape[0] == 0:
+                print(f"[Warning] Empty mesh for object {obj_idx}, exporting true empty OBJ.")                
+                obj_path = os.path.join(output_dir, save_prefix.format(step=self.true_global_step) + f"-obj{obj_idx}.obj")
+                solid_mesh.export(obj_path)
+                print(f"⚠️ Exported Empty Object {obj_idx}: {obj_path}")
+
+                merged_meshes.append(None)
+
+                continue
+
+
+
+            # Map vertices back to grid index to sample features
+            v_scaled = ((vertices + 1.5) / 3.0) * (res - 1)
+            vi = np.clip(v_scaled[:, 0], 0, res-1).astype(np.int32)
+            vj = np.clip(v_scaled[:, 1], 0, res-1).astype(np.int32)
+            vk = np.clip(v_scaled[:, 2], 0, res-1).astype(np.int32)
+
+            feature_sample = features_g[vi, vj, vk]
+            normal_sample = shading_normal_g[vi, vj, vk]
+
+            # Query material
+            feature_sample = torch.tensor(feature_sample, dtype=torch.float32, device=get_device())
+            normal_sample = torch.tensor(normal_sample, dtype=torch.float32, device=get_device())
+            positions_tensor = torch.tensor(vertices, dtype=torch.float32, device=get_device())
+
+            viewdirs = torch.tensor([0.0, 0.0, 1.0], device=get_device()).expand(positions_tensor.shape)
+            light_positions = torch.tensor([[0.0, 10.0, 10.0]], device=get_device()).expand(positions_tensor.shape[0], -1)
+
+            material_outputs = self.material(
+                features=feature_sample,
+                viewdirs=viewdirs,
+                positions=positions_tensor,
+                shading_normal=normal_sample,
+                light_positions=light_positions
+            )
+
+            vertex_colors = material_outputs.detach().cpu().numpy()
+            vertex_colors = np.clip(vertex_colors, 0.0, 1.0)
+
+            # Add Alpha if missing
+            if vertex_colors.shape[1] == 3:
+                alpha_channel = np.ones((vertex_colors.shape[0], 1), dtype=vertex_colors.dtype)
+                vertex_colors = np.concatenate([vertex_colors, alpha_channel], axis=1)
+
+            # Attach color to mesh
+            solid_mesh.visual.vertex_colors = (vertex_colors * 255).astype(np.uint8)
+
+            # 5. Export
+            obj_path = os.path.join(output_dir, save_prefix.format(step=self.true_global_step) + f"-obj{obj_idx}.obj")
+            solid_mesh.export(obj_path)
+            print(f"✅ Exported Object {obj_idx}: {obj_path}")
+
+            merged_meshes.append(solid_mesh)
+
+        # 6. Export merged global scene
+        valid_meshes = [m for m in merged_meshes if m is not None]
+
+        if len(valid_meshes) > 0:
+            global_mesh = trimesh.util.concatenate(valid_meshes)
+            global_obj_path = os.path.join(output_dir, save_prefix.format(step=self.true_global_step) + "-G.obj")
+            global_mesh.export(global_obj_path)
+            # save .glb format too
+            global_obj_path_glb = os.path.join(output_dir, save_prefix.format(step=self.true_global_step) + "-G.glb")
+            global_mesh.export(global_obj_path_glb)
+
+            print(f"✅ Exported Global Scene: {global_obj_path}, {global_obj_path_glb}")
+        else:
+            print(f"⚠️ All meshes empty, global scene not exported.")
+
+
     @torch.no_grad()
     def test_step(self, batch, batch_idx):
         
         if self.render_edges is None:
             out = self(batch)
+            # print(f"check out keys: {out.keys()}") # ['sdf_OBJ', 'sdf_G', 'soft_Labels', 'comp_rgb', 'comp_rgb_fg', 'comp_rgb_bg', 'opacity', 'depth', 'comp_mask_fg', 'comp_normal', 'inv_std', 'comp_rgb_obj', 'comp_rgb_fg_obj', 'opacity_obj', 'depth_obj', 'comp_mask_obj', 'comp_normal_obj']
+            # shape: out["sdf_OBJ"] [677206, 3]
+            # shape: out["sdf_G"] [677206]
+            if batch_idx == 0:
+                # since the 3D mesh is fixed, we can save it once
+                self.export_mesh_from_sdf(out["sdf_G"], res=128, save_prefix=f"it{self.true_global_step}-test")
             no_local = False
             self.postfix = ""
+
         else:
             curr_idx = 0
             curr_edge = self.render_edges

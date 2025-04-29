@@ -21,4 +21,4 @@ export RP2="a 4K DSLR photo of "$P2", high-resolution high-quality"
 python launch.py --config configs/gd-sd-refine.yaml --train --gpu $cuda exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=0. system.geometry.num_objects=2 system.prompt_processor.prompt="$RP" system.prompt_obj=[["$RP1"],["$RP2"]] system.obj_use_view_dependent=true system.prompt_obj_neg=[["$P2"],["$P1"]] system.geometry.sdf_center_dispersion=$CD resume=examples/gd-if/$TG/ckpts/epoch=0-step=10000.ckpt
 
 end=$(date +%s)
-echo "Total time: $((end - start)) seconds" | tee run_time_astronaut_horse.log
+echo "Total time: $((end - start)) seconds" | tee run_time_$TG.log

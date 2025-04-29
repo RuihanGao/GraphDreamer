@@ -52,4 +52,4 @@ python launch.py --config configs/gd-sd-refine.yaml --train --gpu $cuda exp_root
 
 
 end=$(date +%s)
-echo "Total time: $((end - start)) seconds" | tee run_time_wizard_study.log
+echo "Total time: $((end - start)) seconds" | tee run_time_$TG.log

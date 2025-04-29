@@ -1,15 +1,15 @@
 #!/bin/bash
 start=$(date +%s)
 
-export cuda=0
+export cuda=2
 
-export P="a DSLR photo of a blue jay standing on a large basket of rainbow macarons"
-export P1="a DSLR photo of a blue jay"
-export P2="a DSLR photo of a large basket of rainbow macarons"
+export P="a DSLR photo of three pices of clothing hanging on a freestanding clothes rack"
+export P1="a DSLR photo of three pices of clothing"
+export P2="a DSLR photo of a freestanding clothes rack"
 export CD=0. 
 
 # Use different tags to avoid overwriting:
-export TG="blue_jay"
+export TG="clothes_hanger"
 
 python launch.py --config configs/gd-if.yaml --train --gpu $cuda exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=0. system.geometry.num_objects=2 system.prompt_processor.prompt="$P" system.prompt_processor.negative_prompt="ugly, bad anatomy, blurry, pixelated obscure, unnatural colors, poor lighting, dull, and unclear, cropped, lowres, low quality, artifacts, duplicate, morbid, mutilated, poorly drawn face, deformed, dehydrated, bad proportions" system.prompt_obj=[["$P1"],["$P2"]] system.prompt_obj_neg=[["$P2"],["$P1"]] system.obj_use_view_dependent=true system.geometry.sdf_center_dispersion=$CD system.guidance.guidance_scale=[50.,20.] system.guidance.guidance_scale_milestones=[2000,] system.optimizer.params.geometry.lr=0.01
 

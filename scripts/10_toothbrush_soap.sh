@@ -1,7 +1,7 @@
 #!/bin/bash
 start=$(date +%s)
 
-export cuda=0
+export cuda=1
 
 export P="A white ceramic cup holds two blue and green toothbrushes, a blue and white toothpaste tube, and a blue-handled razor, while a white soap dish beside it contains two bars of soap—one white and one beige."
 
@@ -24,7 +24,7 @@ export E=[[0,1],[0,2],[0,3],[1,2]]
 # export R=[0.5,0.5,0.3,0.3]
 
 # Name save folder:
-export TG="10_toothbrush_soap"
+export TG="10_toothbrush_soap_T2"
 
 # 1. Coarse stage:
 python launch.py --config configs/gd-if.yaml --train --gpu $cuda exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=$N_obj system.prompt_processor.prompt="$P" system.prompt_processor.negative_prompt="$NP" system.prompt_obj="$PO" system.prompt_global="$PG" system.edge_list=$E system.guidance.guidance_scale=[200.,100.] system.guidance.guidance_scale_milestones=[2000,] system.optimizer.params.geometry.lr=0.01 data.resolution_milestones=[2000,] trainer.max_steps=4600

@@ -1,7 +1,7 @@
 #!/bin/bash
 start=$(date +%s)
 
-export cuda=0
+export cuda=2
 
 export P="A vintage wooden radio with a small cow figurine on top sits on a stack of three hardcover books, next to a wooden cup holding colorful pencils"
 

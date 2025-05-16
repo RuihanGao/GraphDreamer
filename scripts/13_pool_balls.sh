@@ -1,7 +1,7 @@
 #!/bin/bash
 start=$(date +%s)
 
-export cuda=0
+export cuda=2
 
 export P="A round blue inflatable pool filled with small blue, white, and turquoise plastic balls features a toy sailboat, two yellow rubber ducks, a green turtle, and an orange starfish"
 

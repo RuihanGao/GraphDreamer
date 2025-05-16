@@ -1,7 +1,7 @@
 #!/bin/bash
 start=$(date +%s)
 
-export cuda=0
+export cuda=3
 
 export P="A brown leather sofa decorated with plush toys, including a large teddy bear, a gray elephant, a white rabbit, a yellow giraffe, and two throw pillows, sits in a cozy room with two round burgundy floor cushions in front"
 

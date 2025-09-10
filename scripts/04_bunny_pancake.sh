@@ -1,7 +1,7 @@
 #!/bin/bash
 start=$(date +%s)
 
-export cuda=3
+export cuda=1
 
 export P="a baby bunny sitting on top of a stack of pancakes."
 export P1="'a baby bunny: small, fluffy, cute'"
@@ -19,7 +19,7 @@ export E=[[0,1],[1,0]]
 # export R=[0.5,0.5,0.3,0.3]
 
 # Name save folder:
-export TG="04_bunny_pancake"
+export TG="04_bunny_pancake_2"
 
 # 1. Coarse stage:
 python launch.py --config configs/gd-if.yaml --train --gpu $cuda exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=$N_obj system.prompt_processor.prompt="$P" system.prompt_processor.negative_prompt="$NP" system.prompt_obj="$PO" system.prompt_global="$PG" system.edge_list=$E system.guidance.guidance_scale=[200.,100.] system.guidance.guidance_scale_milestones=[2000,] system.optimizer.params.geometry.lr=0.01 data.resolution_milestones=[2000,] trainer.max_steps=4600

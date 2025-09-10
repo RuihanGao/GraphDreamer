@@ -1,7 +1,7 @@
 #!/bin/bash
 start=$(date +%s)
 
-export cuda=2
+export cuda=0
 
 export P="A wooden table with a red fire extinguisher sits in front of a metal shelving unit with a gray cap on one of the shelves, flanked by large cardboard sheets on one side and a wheeled cart holding potted green plants on the other"
 

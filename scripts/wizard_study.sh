@@ -26,7 +26,7 @@ export C=[[-0.25,0.1,0.],[0.24,0.12,0.],[0.25,0.13,0.2],[0.28,-0.16,0.2]]
 export R=[0.5,0.5,0.3,0.3]
 
 # Name save folder:
-export TG="wizard_study"
+export TG="wizard_study_v0"
 
 # 1. Coarse stage:
 python launch.py --config configs/gd-if.yaml --train --gpu $cuda exp_root_dir="examples" use_timestamp=false tag=$TG system.loss.lambda_entropy=1. system.geometry.num_objects=4 system.prompt_processor.prompt="$P" system.prompt_processor.negative_prompt="$NP" system.prompt_obj=[["$P1"],["$P2"],["$P3"],["$P4"]] system.prompt_obj_neg=[["$N234"],["$N134"],["$N124"],["$N123"]] system.prompt_global="$PG" system.edge_list=$E system.guidance.guidance_scale=[200.,100.] system.guidance.guidance_scale_milestones=[2000,] system.geometry.center_params=$C system.geometry.radius_params=$R system.optimizer.params.geometry.lr=0.01 data.resolution_milestones=[2000,] trainer.max_steps=4600
